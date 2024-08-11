@@ -1,0 +1,412 @@
+Carregando Base
+
+```{r}
+df = read_excel('mega_sena_asloterias_ate_concurso_2758_sorteio.xlsx')
+
+# Função para transformar o nome das colunas
+transformar_nome_coluna <- function(nome) {
+  nome <- tolower(nome)
+  nome <- gsub(" ", "_", nome)
+  return(nome)
+}
+
+# Renomeando as colunas
+df <- df %>% rename_with(transformar_nome_coluna)
+df
+```
+
+Verificando sequencias de jogos ja repetidos
+
+```{r}
+df$bolas <- apply(df[, c("bola_1", "bola_2", "bola_3", "bola_4", "bola_5", "bola_6")], 1, function(x) paste(x, collapse = '_'))
+sample(df$bolas, 10)
+
+# Selecionar linhas duplicadas na coluna 'bolas'
+df %>% filter(duplicated(bolas) | duplicated(bolas, fromLast = TRUE))
+```
+
+Verificando sequencias de jogos ja repetidos, após ordenar em ordem crescente
+
+```{r}
+df$bolas <- apply(df[, c("bola_1", "bola_2", "bola_3", "bola_4", "bola_5", "bola_6")], 1, function(x) paste(sort(x), collapse = '_'))
+sample(df$bolas, 10)
+
+# Selecionar linhas duplicadas na coluna 'bolas'
+df %>% filter(duplicated(bolas) | duplicated(bolas, fromLast = TRUE))
+```
+
+```{r Contagem}
+
+# for (i in 1:6){
+#   coluna = paste0('bola_',i)
+#   plot = df %>% group_by(bolas = !!sym(coluna)) %>% 
+#     summarise(qtd = n()) %>% 
+#     mutate(freq = round(qtd/sum(qtd)*100, 2),
+#            bolas = factor(bolas, levels = bolas[order(qtd)]),
+#            labels = paste0(qtd, ' (',round(freq, 2),'%)')
+#            ) %>% #arrange(-qtd) %>% 
+#     #slice(1:20) %>% 
+#     ggplot(aes(x = bolas, y = qtd, fill = bolas)) + 
+#     geom_col() + 
+#     geom_text(aes(y=10, label = labels, vjust=0.5)) +
+#     theme(legend.position = 'none') + 
+#     labs(title = coluna) +
+#     coord_flip() 
+#   plot %>% print()
+#   ggsave(paste0(coluna,".png"), height=30, width=15, units="cm", dpi= 600)
+# }
+
+```
+
+
+```{r Contagem em ordem crescente}
+df$bola_n1 = NA
+df$bola_n2 = NA
+df$bola_n3 = NA
+df$bola_n4 = NA
+df$bola_n5 = NA
+df$bola_n6 = NA
+
+for (linha in 1:nrow(df)){
+  lista = sort(c(df$bola_1[linha], df$bola_2[linha], df$bola_3[linha], df$bola_4[linha], df$bola_5[linha], df$bola_6[linha]))
+  df$bola_n1[linha] = lista[1]
+  df$bola_n2[linha] = lista[2]
+  df$bola_n3[linha] = lista[3]
+  df$bola_n4[linha] = lista[4]
+  df$bola_n5[linha] = lista[5]
+  df$bola_n6[linha] = lista[6]
+  df$bolas[linha] = paste0(lista, collapse = '_')
+}
+
+# for (i in 1:6){
+#   coluna = paste0('bola_n',i)
+#   plot = df %>% group_by(bolas = !!sym(coluna)) %>% 
+#     summarise(qtd = n()) %>% 
+#     mutate(freq = round(qtd/sum(qtd)*100, 2),
+#            bolas = factor(bolas, levels = bolas[order(qtd)]),
+#            labels = paste0(qtd, ' (',round(freq, 2),'%)')
+#            ) %>% #arrange(-qtd) %>% 
+#     slice(1:20) %>% 
+#     ggplot(aes(x = bolas, y = qtd, fill = bolas)) + 
+#     geom_col() + 
+#     geom_text(aes(y=30, label = labels, vjust=0.5)) +
+#     theme(legend.position = 'none') + 
+#     labs(title = coluna) +
+#     coord_flip() 
+#   plot %>% print()
+#   #ggsave(paste0(coluna,".png"), height=30, width=15, units="cm", dpi= 600)
+# }
+
+```
+
+
+```{r}
+combinacoes = combn(c('bola_n1','bola_n2','bola_n3','bola_n4','bola_n5','bola_n6'), 2, simplify = FALSE)
+
+for (comb in combinacoes){
+  tabela = df %>% 
+    group_by(coluna1 = !!sym(comb[1]), coluna2 = !!sym(comb[2])) %>% 
+    summarise(qtd = n())
+    
+  plot = ggplot(tabela %>% filter(qtd > 5), 
+                aes(x = coluna1, y = coluna2, color = qtd, size = qtd)) + 
+    geom_point(alpha = 0.8) + 
+    #geom_point(shape = 21) +  
+    scale_x_continuous(limits = c(1, max(tabela$coluna1)), breaks=seq(from = 0, to = 100, by = 2)) +
+    scale_y_continuous(limits = c(1, max(tabela$coluna2)), breaks=seq(from = 0, to = 100, by = 2)) + 
+    scale_color_gradient2() +
+    labs(x = comb[1], y = comb[2])
+  plot %>% print()
+}
+
+```
+
+```{r}
+fd = df
+
+# Definindo a função de recodificação
+recodifica_bolas <- function(bola) {
+  bola[bola <= 10] <- '1. 0a10'
+  bola[bola > 10 & bola <= 20] <- '2. 11a20'
+  bola[bola > 20 & bola <= 30] <- '3. 21a30'
+  bola[bola > 30 & bola <= 40] <- '4. 31a40'
+  bola[bola > 40 & bola <= 50] <- '5. 41a50'
+  bola[bola > 50 & bola <= 60] <- '6. 51a60'
+  return(factor(bola))
+}
+
+# Aplicando a função de recodificação a todas as colunas desejadas
+fd[, c("bola_n1", "bola_n2", "bola_n3", "bola_n4", "bola_n5", "bola_n6")] <- lapply(
+  fd[, c("bola_n1", "bola_n2", "bola_n3", "bola_n4", "bola_n5", "bola_n6")],
+  recodifica_bolas
+)
+
+# Exibindo o resultado
+print(fd)
+```
+
+```{r}
+tabela = fd %>% 
+  group_by(bola_n1, bola_n2, bola_n3, bola_n4, bola_n5, bola_n6) %>% 
+  summarise(qtd = n()) %>% 
+  arrange(-qtd)
+tabela$freq = tabela$qtd / sum(tabela$qtd)
+tabela$freq = tabela$freq*100 %>% round(2)
+tabela$freq_cum = cumsum(tabela$freq)
+########################################################################
+teste_normalidade(tabela, 'qtd', plot_qqplot = F) + scale_x_continuous(limits = c(0, 56), breaks=seq(from = 0, to = 56, by = 2))
+teste_normalidade(tabela, 'freq', plot_qqplot = F)
+########################################################################
+tabela
+```
+
+```{r}
+for (coluna in c("bola_n1", "bola_n2", "bola_n3", "bola_n4", "bola_n5", "bola_n6")){
+  tabela %>% 
+    group_by(!!sym(coluna)) %>% 
+    summarise(qtd=sum(qtd), freq=sum(freq)) %>% 
+    print()
+}
+```
+
+
+```{r}
+library(ggalluvial)
+for (coluna in c('bola_n1','bola_n2','bola_n3','bola_n4','bola_n5','bola_n6')){
+  plot = ggplot(data = tabela,
+      aes(axis1=bola_n1, axis2=bola_n2, axis3=bola_n3, axis4=bola_n4, axis5=bola_n5, axis6=bola_n6, y = qtd)) +
+      geom_alluvium(aes(fill = !!sym(coluna))) +
+      geom_stratum() +
+      geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+      theme_minimal() + theme(legend.position = "bottom")
+  plot %>% print()
+}
+```
+
+```{r}
+# FILTRO 1
+filtro_b1 = tabela$bola_n1 == '1. 0a10' | tabela$bola_n1 == '2. 11a20'
+filtro_b2 = tabela$bola_n2 == '1. 0a10' | tabela$bola_n2 == '2. 11a20' | tabela$bola_n2 == '3. 21a30'
+filtro_b3 = tabela$bola_n3 == '2. 11a20' | tabela$bola_n3 == '3. 21a30' | tabela$bola_n3 == '4. 31a40'
+filtro_b4 = tabela$bola_n4 == '3. 21a30' | tabela$bola_n4 == '4. 31a40' | tabela$bola_n4 == '5. 41a50'
+filtro_b5 = tabela$bola_n5 == '4. 31a40' | tabela$bola_n5 == '5. 41a50' | tabela$bola_n5 == '6. 51a60'
+filtro_b6 = tabela$bola_n6 == '5. 41a50' | tabela$bola_n6 == '6. 51a60'
+
+tabela$filtro1 = 0
+tabela$filtro1[filtro_b1 & filtro_b2 & filtro_b3 & filtro_b4 & filtro_b5 & filtro_b6] = 1
+tabela %>% group_by(filtro1) %>% summarise(n=n(), qtd=sum(qtd), freq=sum(freq))
+###############################################################################
+# FILTRO 1.1
+filtro_b1 = tabela$bola_n1 == '1. 0a10' | tabela$bola_n1 == '2. 11a20'
+filtro_b2 = tabela$bola_n2 == '1. 0a10' | tabela$bola_n2 == '2. 11a20' | tabela$bola_n2 == '3. 21a30'
+filtro_b3 = tabela$bola_n3 == '2. 11a20' | tabela$bola_n3 == '3. 21a30' | tabela$bola_n3 == '4. 31a40'
+filtro_b4 = tabela$bola_n4 == '3. 21a30' | tabela$bola_n4 == '4. 31a40' | tabela$bola_n4 == '5. 41a50'
+filtro_b5 = tabela$bola_n5 == '4. 31a40' | tabela$bola_n5 == '5. 41a50' | tabela$bola_n5 == '6. 51a60'
+filtro_b6 = tabela$bola_n6 == '5. 41a50' | tabela$bola_n6 == '6. 51a60'
+filtro_minimo = tabela$qtd >= 8
+
+tabela$filtro11 = 0
+tabela$filtro11[filtro_b1 & filtro_b2 & filtro_b3 & filtro_b4 & filtro_b5 & filtro_b6 & filtro_minimo] = 1
+tabela %>% group_by(filtro11) %>% summarise(n=n(), qtd=sum(qtd), freq=sum(freq))
+###############################################################################
+# FILTRO 1.2
+filtro_b1 = tabela$bola_n1 == '1. 0a10' | tabela$bola_n1 == '2. 11a20'
+filtro_b2 = tabela$bola_n2 == '1. 0a10' | tabela$bola_n2 == '2. 11a20' | tabela$bola_n2 == '3. 21a30'
+filtro_b3 = tabela$bola_n3 == '2. 11a20' | tabela$bola_n3 == '3. 21a30' | tabela$bola_n3 == '4. 31a40'
+filtro_b4 = tabela$bola_n4 == '3. 21a30' | tabela$bola_n4 == '4. 31a40' | tabela$bola_n4 == '5. 41a50'
+filtro_b5 = tabela$bola_n5 == '4. 31a40' | tabela$bola_n5 == '5. 41a50' | tabela$bola_n5 == '6. 51a60'
+filtro_b6 = tabela$bola_n6 == '5. 41a50' | tabela$bola_n6 == '6. 51a60'
+filtro_minimo = tabela$qtd >= 8
+
+tabela$filtro12 = 0
+tabela$filtro12[(filtro_b1 & filtro_b2 & filtro_b3 & filtro_b4 & filtro_b5 & filtro_b6) | filtro_minimo] = 1
+tabela %>% group_by(filtro12) %>% summarise(n=n(), qtd=sum(qtd), freq=sum(freq))
+###############################################################################
+# FILTRO 2
+filtro_b1 = tabela$bola_n1 == '1. 0a10'
+filtro_b2 = tabela$bola_n2 == '2. 11a20'
+filtro_b3 = tabela$bola_n3 == '2. 11a20' | tabela$bola_n3 == '3. 21a30' | tabela$bola_n3 == '4. 31a40'
+filtro_b4 = tabela$bola_n4 == '3. 21a30' | tabela$bola_n4 == '4. 31a40' | tabela$bola_n4 == '5. 41a50'
+filtro_b5 = tabela$bola_n5 == '4. 31a40' | tabela$bola_n5 == '5. 41a50' | tabela$bola_n5 == '6. 51a60'
+filtro_b6 = tabela$bola_n6 == '6. 51a60'
+
+tabela$filtro2 = 0
+tabela$filtro2[filtro_b1 & filtro_b2 & filtro_b3 & filtro_b4 & filtro_b5 & filtro_b6] = 1
+tabela %>% group_by(filtro2) %>% summarise(n=n(), qtd=sum(qtd), freq=sum(freq))
+###############################################################################
+# FILTRO 3
+filtro_minimo = tabela$qtd >= 8
+
+tabela$filtro3 = 0
+tabela$filtro3[filtro_minimo] = 1
+tabela %>% group_by(filtro3) %>% summarise(n=n(), qtd=sum(qtd), freq=sum(freq))
+
+```
+```{r}
+tabela
+tabela %>% filter(filtro1 == 1)
+tabela %>% filter(filtro11 == 1)
+tabela %>% filter(filtro12 == 1)
+tabela %>% filter(filtro2 == 1)
+tabela %>% filter(filtro3 == 1)
+
+teste_normalidade(tabela, 'qtd', plot_qqplot = F, cor_esc = 1)
+teste_normalidade(tabela %>% filter(filtro1 == 1), 'qtd', plot_qqplot = F, cor_esc = 2)
+teste_normalidade(tabela %>% filter(filtro11 == 1), 'qtd', plot_qqplot = F, cor_esc = 2)
+teste_normalidade(tabela %>% filter(filtro12 == 1), 'qtd', plot_qqplot = F, cor_esc = 3)
+teste_normalidade(tabela %>% filter(filtro2 == 1), 'qtd', plot_qqplot = F, cor_esc = 4)
+teste_normalidade(tabela %>% filter(filtro3 == 1), 'qtd', plot_qqplot = F, cor_esc = 5)
+```
+
+```{r analise sem ganho de informação}
+
+# ###############################################################################
+# # FILTRO 0
+# for (coluna in c('bola_n1','bola_n2','bola_n3','bola_n4','bola_n5','bola_n6')){
+#   plot = ggplot(data = tabela %>% filter(qtd > 5),
+#       aes(axis1=bola_n1, axis2=bola_n2, axis3=bola_n3, axis4=bola_n4, axis5=bola_n5, axis6=bola_n6, y = qtd)) +
+#       geom_alluvium(aes(fill = !!sym(coluna))) +
+#       geom_stratum() +
+#       geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+#       theme_minimal() + theme(legend.position = "bottom")
+#   plot %>% print()
+# }
+# ###############################################################################
+# # FILTRO 1
+# for (coluna in c('bola_n1','bola_n2','bola_n3','bola_n4','bola_n5','bola_n6')){
+#   plot = ggplot(data = tabela %>% filter(filtro1 == 1),
+#       aes(axis1=bola_n1, axis2=bola_n2, axis3=bola_n3, axis4=bola_n4, axis5=bola_n5, axis6=bola_n6, y = qtd)) +
+#       geom_alluvium(aes(fill = !!sym(coluna))) +
+#       geom_stratum() +
+#       geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+#       theme_minimal() + theme(legend.position = "bottom")
+#   plot %>% print()
+# }
+# ###############################################################################
+# # FILTRO 2
+# for (coluna in c('bola_n1','bola_n2','bola_n3','bola_n4','bola_n5','bola_n6')){
+#   plot = ggplot(data = tabela %>% filter(filtro2 == 1),
+#       aes(axis1=bola_n1, axis2=bola_n2, axis3=bola_n3, axis4=bola_n4, axis5=bola_n5, axis6=bola_n6, y = qtd)) +
+#       geom_alluvium(aes(fill = !!sym(coluna))) +
+#       geom_stratum() +
+#       geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+#       theme_minimal() + theme(legend.position = "bottom")
+#   plot %>% print()
+# }
+# ###############################################################################
+# # FILTRO 3
+# for (coluna in c('bola_n1','bola_n2','bola_n3','bola_n4','bola_n5','bola_n6')){
+#   plot = ggplot(data = tabela %>% filter(filtro3 == 1),
+#       aes(axis1=bola_n1, axis2=bola_n2, axis3=bola_n3, axis4=bola_n4, axis5=bola_n5, axis6=bola_n6, y = qtd)) +
+#       geom_alluvium(aes(fill = !!sym(coluna))) +
+#       geom_stratum() +
+#       geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+#       theme_minimal() + theme(legend.position = "bottom")
+#   plot %>% print()
+# }
+###############################################################################
+```
+
+
+```{r}
+for (coluna in c('filtro','filtro1','filtro11','filtro12','filtro2','filtro3')){
+  plot = ggplot(data = tabela,
+      aes(axis1=bola_n1, axis2=bola_n2, axis3=bola_n3, axis4=bola_n4, axis5=bola_n5, axis6=bola_n6, y = qtd)) +
+      geom_alluvium(aes(fill = as.factor(!!sym(coluna)))) +
+      geom_stratum() +
+      geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+      theme_minimal() + theme(legend.position = "bottom")
+  plot %>% print()
+}
+```
+
+
+```{r}
+# FILTRO 1
+for (coluna in c('bola_n1','bola_n2','bola_n3','bola_n4','bola_n5','bola_n6')){
+  plot = ggplot(data = tabela %>% filter(filtro12 == 1),
+      aes(axis1=bola_n1, axis2=bola_n2, axis3=bola_n3, axis4=bola_n4, axis5=bola_n5, axis6=bola_n6, y = qtd)) +
+      geom_alluvium(aes(fill = !!sym(coluna))) +
+      geom_stratum() +
+      geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+      theme_minimal() + theme(legend.position = "bottom")
+  plot %>% print()
+}
+```
+
+
+
+```{r}
+for (i in 1:5){
+  coluna_y = paste0('bola_n',i)
+  coluna_x = paste0('bola_n',i+1)
+  titulo = paste(coluna_y, '->', coluna_x)
+  
+  grafi = tabela %>% filter(filtro1 == 1) %>%
+    group_by(!!sym(coluna_y), !!sym(coluna_x)) %>% 
+    summarise(qtd = sum(qtd)) %>% 
+    mutate(frequencia = round(qtd/sum(qtd)*100, 2)) %>% 
+    ungroup()
+  grafi$texto = paste0(round(grafi$qtd,0), '\n(',round(grafi$frequencia,0),'%)')
+  
+  p = ggplot(grafi, 
+         aes(x=as.factor(!!sym(coluna_y)), y=frequencia, fill=as.factor(!!sym(coluna_x)))) + 
+    geom_bar(stat="identity", position=position_dodge2(preserve = 'single'), color='black') +
+    geom_text(aes(y=frequencia, label = texto), 
+              position=position_dodge2(width = 0.9, preserve = 'single'), 
+              vjust=-0.5, hjust=0.5) +
+    # geom_label(aes(y=frequencia, label = sprintf("%0.1f%%", frequencia)), 
+    #            position=position_dodge2(width = 0.9, preserve = 'single'), vjust=-0.5, hjust=0.5, fill='white') +
+    theme(legend.position = "bottom") +
+    scale_y_continuous(labels = scales::percent) +
+    scale_y_continuous(limits = c(0, 100), breaks=seq(from=0, to=100, by=10)) +
+    labs(x=NULL, y='Frequency (%)', title = titulo, fill=NULL) 
+  print(p)
+}
+```
+
+
+```{r}
+arranjos <- function(n, k) {factorial(n) / factorial(n - k)} # func arranjos
+
+# ARRANJO TOTAIS <-> quantidade de possibilidades
+#(60*59*58*57*56*55) %>% format(big.mark = ".")
+totais = arranjos(60, 6)
+totais %>% format(big.mark = ".")
+
+
+# quantidade de jogos <-> historico
+nrow(df) %>% format(big.mark = ".")
+# 
+porcentagem_geral = ((nrow(df)/totais)*100)
+porcentagem_geral = formatC(porcentagem_geral, format = "e", digits = 2)
+paste0(porcentagem_geral, '%')
+
+
+parciais = (20*29*29*29*29*29) 
+parciais %>% format(big.mark = ".")
+#
+porcentagem_aumentada = ((parciais/totais)*100)
+paste0( porcentagem_aumentada %>% round(2), '%')
+```
+
+
+
+
+
+```{r}
+df
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
